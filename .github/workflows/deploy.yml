@@ -51,6 +51,6 @@ jobs:
           script: |
             cd /app/meropriyatno
             export IMAGE_OWNER=${{ github.repository_owner }}
-            docker-compose pull
-            docker-compose up -d
+            docker compose pull
+            docker compose up -d
             docker image prune -f
