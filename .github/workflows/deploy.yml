@@ -2,22 +2,20 @@ name: Deploy
 
 on:
   push:
-    branches: [ main ]          # Автоматический запуск при пуше в main
-  workflow_dispatch:            # Ручной запуск из интерфейса GitHub
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read            # Для checkout
-      packages: write           # Для пуша образа в GHCR
+      contents: read
+      packages: write
 
     steps:
-      # 1. Клонируем репозиторий
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Логинимся в GitHub Container Registry
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -25,40 +23,25 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. Генерируем теги для образа (latest + sha коммита)
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/meropriyatno-server
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=,suffix=
-
-      # 4. Сборка и публикация образа с кешированием
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/meropriyatno-server:latest
+            ghcr.io/${{ github.repository_owner }}/meropriyatno-server:${{ github.sha }}
 
-      # 5. Копируем конфигурационные файлы на VPS
-      #    (если .env.production не используется – удалите его из списка)
-      - name: Copy compose & env files to VPS
+      - name: Copy docker-compose files to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml docker-compose.prod.yml .env.production"
+          source: docker-compose.yml,docker-compose.prod.yml
           target: /app/meropriyatno
           strip_components: 0
 
-      # 6. Деплой через SSH
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
@@ -68,16 +51,6 @@ jobs:
           script: |
             cd /app/meropriyatno
             export IMAGE_OWNER=${{ github.repository_owner }}
-
-            # Забираем новые образы (учитываем оба compose-файла)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-
-            # Перезапускаем контейнеры
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-            # Очищаем старые (висячие) образы
+            docker-compose pull
+            docker-compose up -d
             docker image prune -f
-
-            # Небольшая пауза и проверка работоспособности (подставьте свой endpoint)
-            sleep 5
-            curl -f http://localhost:80/health || exit 1
