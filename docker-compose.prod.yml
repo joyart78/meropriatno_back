@@ -1,6 +1,5 @@
 services:
   backend:
-    build: 1
     image: ghcr.io/${IMAGE_OWNER:-meropriyatno}/meropriyatno-server:latest
     env_file:
       - .env
