@@ -1,20 +1,56 @@
 import https from 'https';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import type { ContactFormData } from '../types';
 import { ContactSubmission } from '../models/ContactSubmission.js';
 
 let botToken = '';
 let allowedChatIds: string[] = [];
 let lastUpdateId = 0;
+let apiAgent: https.Agent | undefined;
 
-export function initTelegramBot(token: string, chatIds: string): void {
+export function initTelegramBot(token: string, chatIds: string, proxyUrl?: string): void {
   if (!token || !chatIds) return;
 
   botToken = token;
   allowedChatIds = chatIds.split(',').map((id) => id.trim()).filter(Boolean);
 
+  if (proxyUrl) {
+    apiAgent = new SocksProxyAgent(proxyUrl);
+    console.log('Telegram proxy configured:', proxyUrl);
+  }
+
+  testApiConnection();
   pollUpdates();
   setBotCommands();
   console.log('Telegram bot started');
+}
+
+function fetch(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const opts: https.RequestOptions = {};
+    if (apiAgent) opts.agent = apiAgent;
+
+    https.get(url, opts, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+function testApiConnection(): void {
+  fetch(`https://api.telegram.org/bot${botToken}/getMe`).then((json) => {
+    if (json.ok) {
+      console.log('Telegram API OK — bot:', json.result.username);
+    } else {
+      console.error('Telegram API error:', json);
+    }
+  }).catch((err: any) => {
+    console.error('Telegram API unreachable:', err.code || err.message || err);
+  });
 }
 
 function setBotCommands(): void {
@@ -26,15 +62,10 @@ function setBotCommands(): void {
   const url = new URL(`https://api.telegram.org/bot${botToken}/setMyCommands`);
   url.searchParams.set('commands', commands);
 
-  https.get(url.toString(), (res) => {
-    let data = '';
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => {
-      const json = JSON.parse(data);
-      if (!json.ok) console.error('Failed to set bot commands:', json);
-    });
-  }).on('error', (err) => {
-    console.error('setMyCommands error:', err.message);
+  fetch(url.toString()).then((json) => {
+    if (!json.ok) console.error('Failed to set bot commands:', json);
+  }).catch((err: any) => {
+    console.error('setMyCommands error:', err.code || err.message || err);
   });
 }
 
@@ -43,26 +74,17 @@ function pollUpdates(): void {
   url.searchParams.set('timeout', '30');
   url.searchParams.set('offset', String(lastUpdateId + 1));
 
-  https.get(url.toString(), (res) => {
-    let data = '';
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => {
-      try {
-        const json = JSON.parse(data);
-        if (json.ok && json.result) {
-          for (const update of json.result) {
-            lastUpdateId = update.update_id;
-            handleUpdate(update);
-          }
-        }
-      } catch (err) {
-        console.error('Telegram polling parse error:', err);
+  fetch(url.toString()).then((json) => {
+    if (json.ok && json.result) {
+      for (const update of json.result) {
+        lastUpdateId = update.update_id;
+        handleUpdate(update);
       }
-      pollUpdates();
-    });
-  }).on('error', (err) => {
-    console.error('Telegram polling error:', err.message);
-    setTimeout(pollUpdates, 5000);
+    }
+    pollUpdates();
+  }).catch((err: any) => {
+    console.error('Telegram polling error:', err.code || err.message || err);
+    setTimeout(pollUpdates, 15000);
   });
 }
 
@@ -115,20 +137,11 @@ function sendMessage(text: string, chatId?: string): void {
   for (const id of targets) {
     const url = new URL(`https://api.telegram.org/bot${botToken}/sendMessage`);
     url.searchParams.set('chat_id', id);
-  url.searchParams.set('text', text);
-  url.searchParams.set('parse_mode', 'HTML');
+    url.searchParams.set('text', text);
+    url.searchParams.set('parse_mode', 'HTML');
 
-    https.get(url.toString(), (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        const json = JSON.parse(data);
-        if (!json.ok) {
-          console.error('Telegram sendMessage error:', json);
-        }
-      });
-    }).on('error', (err) => {
-      console.error('Telegram sendMessage error:', err.message);
+    fetch(url.toString()).catch((err: any) => {
+      console.error('Telegram sendMessage error:', err.code || err.message || err);
     });
   }
 }

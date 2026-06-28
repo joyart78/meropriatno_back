@@ -17,4 +17,5 @@ export interface EnvConfig {
   mailTo: string;
   telegramBotToken: string;
   telegramChatId: string;
+  telegramProxy: string;
 }
