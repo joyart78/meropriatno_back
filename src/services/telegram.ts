@@ -1,19 +1,41 @@
 import https from 'https';
-import type { ContactFormData } from '../types/index.js';
+import type { ContactFormData } from '../types';
 import { ContactSubmission } from '../models/ContactSubmission.js';
 
 let botToken = '';
-let allowedChatId = '';
+let allowedChatIds: string[] = [];
 let lastUpdateId = 0;
 
-export function initTelegramBot(token: string, chatId: string): void {
-  if (!token || !chatId) return;
+export function initTelegramBot(token: string, chatIds: string): void {
+  if (!token || !chatIds) return;
 
   botToken = token;
-  allowedChatId = chatId;
+  allowedChatIds = chatIds.split(',').map((id) => id.trim()).filter(Boolean);
 
   pollUpdates();
+  setBotCommands();
   console.log('Telegram bot started');
+}
+
+function setBotCommands(): void {
+  const commands = JSON.stringify([
+    { command: 'start', description: 'Приветствие' },
+    { command: 'list', description: 'Последние 5 заявок' },
+  ]);
+
+  const url = new URL(`https://api.telegram.org/bot${botToken}/setMyCommands`);
+  url.searchParams.set('commands', commands);
+
+  https.get(url.toString(), (res) => {
+    let data = '';
+    res.on('data', (chunk) => { data += chunk; });
+    res.on('end', () => {
+      const json = JSON.parse(data);
+      if (!json.ok) console.error('Failed to set bot commands:', json);
+    });
+  }).on('error', (err) => {
+    console.error('setMyCommands error:', err.message);
+  });
 }
 
 function pollUpdates(): void {
@@ -48,27 +70,28 @@ function handleUpdate(update: any): void {
   const msg = update.message;
   if (!msg || !msg.text || !msg.chat) return;
 
-  if (msg.chat.id.toString() !== allowedChatId) return;
+  if (!allowedChatIds.includes(msg.chat.id.toString())) return;
 
+  const chatId = msg.chat.id.toString();
   const text = msg.text.trim();
 
   if (text === '/start') {
-    sendMessage('Привет! Я бот для уведомлений о заявках с сайта.\n\nИспользуй /list чтобы посмотреть последние заявки.');
+    sendMessage('Привет! Я бот для уведомлений о заявках с сайта.\n\nИспользуй /list чтобы посмотреть последние заявки.', chatId);
     return;
   }
 
   if (text === '/list') {
-    handleListCommand();
+    handleListCommand(chatId);
     return;
   }
 }
 
-async function handleListCommand(): Promise<void> {
+async function handleListCommand(chatId: string): Promise<void> {
   try {
     const submissions = await ContactSubmission.find().sort({ createdAt: -1 }).limit(5).lean();
 
     if (submissions.length === 0) {
-      sendMessage('Заявок пока нет.');
+      sendMessage('Заявок пока нет.', chatId);
       return;
     }
 
@@ -77,33 +100,37 @@ async function handleListCommand(): Promise<void> {
       return `#${i + 1} — ${date}\n<b>Имя:</b> ${escapeHtml(s.name)}\n<b>Тел:</b> ${escapeHtml(s.phone)}\n<b>Email:</b> ${escapeHtml(s.email)}\n<b>Сообщение:</b> ${escapeHtml(s.message.substring(0, 100))}${s.message.length > 100 ? '...' : ''}`;
     });
 
-    sendMessage(`<b>📋 Последние заявки:</b>\n\n${messages.join('\n\n━━━━━━━━━━━━━━━\n\n')}`);
+    sendMessage(`<b>📋 Последние заявки:</b>\n\n${messages.join('\n\n━━━━━━━━━━━━━━━\n\n')}`, chatId);
   } catch (err) {
     console.error('Failed to fetch submissions:', err);
-    sendMessage('Ошибка при получении заявок.');
+    sendMessage('Ошибка при получении заявок.', chatId);
   }
 }
 
-function sendMessage(text: string): void {
-  if (!botToken || !allowedChatId) return;
+function sendMessage(text: string, chatId?: string): void {
+  if (!botToken || allowedChatIds.length === 0) return;
 
-  const url = new URL(`https://api.telegram.org/bot${botToken}/sendMessage`);
-  url.searchParams.set('chat_id', allowedChatId);
+  const targets = chatId ? [chatId] : allowedChatIds;
+
+  for (const id of targets) {
+    const url = new URL(`https://api.telegram.org/bot${botToken}/sendMessage`);
+    url.searchParams.set('chat_id', id);
   url.searchParams.set('text', text);
   url.searchParams.set('parse_mode', 'HTML');
 
-  https.get(url.toString(), (res) => {
-    let data = '';
-    res.on('data', (chunk) => { data += chunk; });
-    res.on('end', () => {
-      const json = JSON.parse(data);
-      if (!json.ok) {
-        console.error('Telegram sendMessage error:', json);
-      }
+    https.get(url.toString(), (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        const json = JSON.parse(data);
+        if (!json.ok) {
+          console.error('Telegram sendMessage error:', json);
+        }
+      });
+    }).on('error', (err) => {
+      console.error('Telegram sendMessage error:', err.message);
     });
-  }).on('error', (err) => {
-    console.error('Telegram sendMessage error:', err.message);
-  });
+  }
 }
 
 export function sendTelegramNotification(data: ContactFormData): void {
