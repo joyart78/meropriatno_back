@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import type { EnvConfig } from '../types/index.js';
+import type { EnvConfig } from '../types';
 
 export function getEnv(): EnvConfig {
   const missing: string[] = [];
@@ -33,5 +33,7 @@ export function getEnv(): EnvConfig {
     smtpPass: smtpPass || '',
     mailFrom: mailFrom || '',
     mailTo: mailTo || '',
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    telegramChatId: process.env.TELEGRAM_CHAT_ID || '',
   };
 }

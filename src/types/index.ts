@@ -15,4 +15,6 @@ export interface EnvConfig {
   smtpPass: string;
   mailFrom: string;
   mailTo: string;
+  telegramBotToken: string;
+  telegramChatId: string;
 }

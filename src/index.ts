@@ -5,6 +5,7 @@ import { getEnv } from './config/env.js';
 import { connectDB } from './config/database.js';
 import { swaggerSpec } from './config/swagger.js';
 import { initMail } from './services/mail.js';
+import { initTelegramBot } from './services/telegram.js';
 import contactRouter from './routes/contact.js';
 
 const config = getEnv();
@@ -41,6 +42,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 initMail(config);
+initTelegramBot(config.telegramBotToken, config.telegramChatId);
 connectDB(config.mongoUri);
 
 app.listen(config.port, () => {

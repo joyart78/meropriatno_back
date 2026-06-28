@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { ContactFormData } from '../types/index.js';
 import { sendContactForm } from '../services/mail.js';
+import { sendTelegramNotification } from '../services/telegram.js';
 import { getEnv } from '../config/env.js';
 import { ContactSubmission } from '../models/ContactSubmission.js';
 
@@ -102,14 +103,25 @@ router.post('/', async (req: Request, res: Response) => {
   const data = { name: name.trim(), phone: phone.trim(), email: email.trim(), message: message.trim() };
 
   try {
-    const config = getEnv();
-    await sendContactForm(data, config);
-    await ContactSubmission.create(data);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Failed to send email:', err);
-    res.status(500).json({ success: false, errors: ['Ошибка отправки. Попробуйте позже.'] });
+    const submission = await ContactSubmission.create(data);
+    console.log('Contact submission saved:', submission._id);
+  } catch (dbErr) {
+    console.error('Failed to save to MongoDB:', dbErr);
+    res.status(500).json({ success: false, errors: ['Ошибка сохранения. Попробуйте позже.'] });
+    return;
   }
+
+  const config = getEnv();
+
+  try {
+    await sendContactForm(data, config);
+  } catch (mailErr) {
+    console.error('Failed to send email (submission still saved):', mailErr);
+  }
+
+  sendTelegramNotification(data);
+
+  res.json({ success: true });
 });
 
 export default router;
