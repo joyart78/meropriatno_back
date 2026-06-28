@@ -4,7 +4,6 @@ import swaggerUi from 'swagger-ui-express';
 import { getEnv } from './config/env.js';
 import { connectDB } from './config/database.js';
 import { swaggerSpec } from './config/swagger.js';
-import { initMail } from './services/mail.js';
 import { initTelegramBot } from './services/telegram.js';
 import contactRouter from './routes/contact.js';
 
@@ -41,7 +40,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-initMail(config);
 initTelegramBot(config.telegramBotToken, config.telegramChatId, config.telegramProxy);
 connectDB(config.mongoUri);
 
