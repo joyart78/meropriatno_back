@@ -1,8 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import type { ContactFormData } from '../types/index.js';
-import { sendContactForm } from '../services/mail.js';
 import { sendTelegramNotification } from '../services/telegram.js';
-import { getEnv } from '../config/env.js';
 import { ContactSubmission } from '../models/ContactSubmission.js';
 
 const router = Router();
@@ -109,14 +107,6 @@ router.post('/', async (req: Request, res: Response) => {
     console.error('Failed to save to MongoDB:', dbErr);
     res.status(500).json({ success: false, errors: ['Ошибка сохранения. Попробуйте позже.'] });
     return;
-  }
-
-  const config = getEnv();
-
-  try {
-    await sendContactForm(data, config);
-  } catch (mailErr) {
-    console.error('Failed to send email (submission still saved):', mailErr);
   }
 
   sendTelegramNotification(data);
