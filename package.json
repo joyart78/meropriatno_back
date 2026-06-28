@@ -15,7 +15,8 @@
     "mongoose": "^9.6.3",
     "nodemailer": "^6.9.16",
     "swagger-jsdoc": "^6.3.0",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
