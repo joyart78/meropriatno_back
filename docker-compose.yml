@@ -10,6 +10,7 @@ services:
 
   backend:
     build: .
+    image: ghcr.io/${IMAGE_OWNER:-meropriyatno}/meropriyatno-server:latest
     container_name: meropriyatno-backend
     ports:
       - "3000:3000"
