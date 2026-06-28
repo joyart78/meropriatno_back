@@ -35,5 +35,6 @@ export function getEnv(): EnvConfig {
     mailTo: mailTo || '',
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
     telegramChatId: process.env.TELEGRAM_CHAT_ID || '',
+    telegramProxy: process.env.TELEGRAM_PROXY || '',
   };
 }

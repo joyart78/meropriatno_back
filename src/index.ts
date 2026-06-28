@@ -42,7 +42,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 initMail(config);
-initTelegramBot(config.telegramBotToken, config.telegramChatId);
+initTelegramBot(config.telegramBotToken, config.telegramChatId, config.telegramProxy);
 connectDB(config.mongoUri);
 
 app.listen(config.port, () => {
