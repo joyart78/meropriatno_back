@@ -2,26 +2,27 @@ services:
   mongodb:
     image: mongo:7
     container_name: meropriyatno-mongo
-    ports:
-      - "27017:27017"
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo-data:/data/db
-    restart: unless-stopped
 
   backend:
     build: .
     image: ghcr.io/${IMAGE_OWNER:-meropriyatno}/meropriyatno-server:latest
     container_name: meropriyatno-backend
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
     depends_on:
       - mongodb
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/meropriyatno
-      - PORT=3000
+    ports:
+      - "3000:3000"
     env_file:
       - .env
-    restart: unless-stopped
+    environment:
+      PORT: 3000
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/meropriyatno?authSource=admin
 
 volumes:
   mongo-data:
